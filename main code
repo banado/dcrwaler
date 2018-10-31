@@ -1,0 +1,275 @@
+def channel(user_name, api_key, num):
+    # Get unique id for each user.
+    
+    part_list = ['contentDetails','statistics', 'snippet']
+    
+    for part in part_list:
+
+       
+        url = "https://www.googleapis.com/youtube/v3/channels"  # This is the url to extract the data from YouTUbe
+
+        try:
+            parameters = {
+                          'forUsername': user_name,
+                          'part': part,
+                          "maxResults" : num,
+                          "key": api_key
+
+                          }
+            page = requests.request(method="get", url=url, params=parameters, verify = False) # Get JSON data
+            
+            j_results = json.loads(page.text) # Convert JSON to dictionary
+          
+            
+            if part == 'contentDetails':
+                video_id = j_results['items'].pop()['contentDetails']['relatedPlaylists']['uploads'] # This returns the unique ID of the user
+            elif part == 'snippet':
+                title = j_results['items'].pop()['snippet']['title']
+            else:
+                subscribers = j_results['items'].pop()['statistics']['subscriberCount']
+            
+            
+            
+                
+        except:
+
+            parameters = {
+              'id': user_name, # id is required instead of forUsername
+              'part': part,
+              "maxResults" : num,
+              "key": api_key
+              }
+
+            page = requests.request(method="get", url=url, params=parameters, verify = False)
+            j_results = json.loads(page.text)
+      
+
+
+            if part == 'contentDetails':
+                video_id = j_results['items'].pop()['contentDetails']['relatedPlaylists']['uploads'] # This returns the unique ID of the user
+            elif part == 'snippet':
+                title = j_results['items'].pop()['snippet']['title']
+            else:
+                subscribers = j_results['items'].pop()['statistics']['subscriberCount']
+                
+
+    return video_id, subscribers, title
+
+    
+def playlist(user_id, api_key, num):
+    
+    # Get playlists 
+    
+    
+    parameters = {"part": "id",
+
+              "part": "snippet",
+              'part': 'contentDetails',
+              "playlistId" : user_id,
+              "maxResults" : num,
+              "key": api_key,
+              'pageToken' : ""
+
+              }
+    pagetoken = ""
+    url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    video_id = [] # Video id
+    video_date = [] # video published date
+    c = 0
+    
+    page = requests.request(method="get", url=url, params=parameters, verify = False)
+    j_results = json.loads(page.text)
+    
+    
+    while True:
+
+        if c!= 0:
+            parameters['pageToken'] = pagetoken
+            page = requests.request(method="get", url=url, params=parameters, verify = False)
+            j_results = json.loads(page.text)
+
+
+        for i in range(0,len(j_results['items'])):
+
+            video_id.append(j_results['items'][i]['contentDetails'].get("videoId")) # Get video id 
+            video_date.append(j_results['items'][i]['contentDetails'].get("videoPublishedAt")[:-14]) # Get video id    
+       
+        c+=1
+        if 'nextPageToken' in j_results.keys():
+            
+            pagetoken = j_results['nextPageToken']
+        else:
+            break
+        
+
+    return video_id, video_date
+
+                        
+def video_stat(video_id, video_date, subscribers, user_name, api_key, num,url_original):
+
+    # Get each video data
+    
+    parameters = {"part": "id",
+              'part': 'statistics',
+              "id" : "",
+              "maxResults" : num,
+              "key": api_key
+              }
+
+   
+    #    page = requests.request(method="get", url=url, params=parameters) # Get JSON 
+#    j_results = json.loads(page.text) # Convert JSON to dictionary
+
+    view_count = [] # View Count list
+    like_count = [] # Like Count LIst
+    dislike_count = [] #Dislike Count List
+    favorite_count = [] # Favorite count list
+    comment_count = [] # comment count list
+    title = []
+    description = []
+    
+    not_empty_vi = 0
+            
+    
+    for vi_id in video_id: # Loop through each video ID
+        parameters['id'] = vi_id # 
+        parameters['part'] = 'statistics'
+        url = "https://www.googleapis.com/youtube/v3/videos" # URL to get video detail
+        page = requests.request(method="get", url=url, params=parameters, verify = False) # Get JSON
+        j_results = json.loads(page.text) # Convert JSON to dictionary
+        j_results = j_results['items'].pop() # pop out the list
+        
+        if 'commentCount' not in j_results['statistics'].keys() and 'viewCount' not in j_results['statistics'].keys():
+            pos = video_id.index(vi_id)
+            video_date[pos] = 0
+            
+        else:
+            # Append the each item to the corresponding lists
+            
+            not_empty_vi+=1
+            
+            view_count.append(int(j_results['statistics']['viewCount'])) 
+
+            if 'likeCount' not in j_results['statistics'].keys():
+                like_count.append(0)
+            else:
+                like_count.append(int(j_results['statistics']['likeCount']))
+
+            if 'dislikeCount' not in j_results['statistics'].keys():
+                dislike_count.append(0)
+            else:
+                dislike_count.append(int(j_results['statistics']['dislikeCount']))
+
+            if 'commentCount' not in j_results['statistics'].keys():
+                comment_count.append(0)
+            else:
+                comment_count.append(int(j_results['statistics']['commentCount']))
+                
+        parameters['part'] = 'snippet'
+        url = "https://www.googleapis.com/youtube/v3/videos" # URL to get video detail
+        page = requests.request(method="get", url=url, params=parameters, verify = False) # Get JSON
+        j_results = json.loads(page.text) # Convert JSON to dictionary
+        j_results = j_results['items'].pop() # pop out the list
+        title.append(j_results['snippet']['title'])
+        description.append(j_results['snippet']['description'])
+
+        
+    subscribe = [subscribers] * not_empty_vi
+    name = [user_name] * not_empty_vi # Generate a list of repeating names of the user
+    url_original = [url_original] * not_empty_vi
+    
+    
+    video_date = list(filter(lambda a: a != 0, video_date))
+
+    # Create dataframe using the lists
+    final = pd.DataFrame(np.column_stack([name, subscribe, video_date, view_count, like_count,dislike_count, comment_count,title, description, url_original,video_id]), 
+                         columns = ['name','subscriber_count','video_date','view_count','like_count','dislike_count','comment_count','title','description','url','Video ID'])
+    
+    
+    for col in final.columns:
+        if col != 'name' and col != "video_date" and col!='url' and col != 'Video ID' and col!='title' and col!='description':
+            final[col] = final[col].astype("int")
+    
+    final['URL'] = final['Video ID'].apply(lambda x : "https://www.youtube.com/watch?v=" + x)
+    
+    final.drop("url", axis =1, inplace = True)
+    final.drop("Video ID", axis =1, inplace = True)
+    
+    #final = final.groupby('name').mean().astype("int")
+    final['SA (YT)'] = final['like_count'] + final['comment_count']
+    
+    
+    return final #return the dataframe
+
+
+def url_to_list(dir):
+    data = pd.ExcelFile(dir)
+    data = data.parse(data.sheet_names[0]) # 1st sheet
+    
+    url_list_id = []
+   
+    for i in range(0,len(data)):
+
+        url_list_id.append(data['URL'][i].split("/")[4])
+    
+    return url_list_id
+
+
+def yt(url, api_key, num):
+    original_url = url
+    # https://www.youtube.com/user/DJCHETASOFFICIAL/adfads 같은 것들을 https://www.youtube.com/user/DJCHETASOFFICIAL로 바꿈
+    try:
+        if url.rsplit('&t=', 1)[1] != None:
+                url = url.rsplit('&t=',1)[0]
+    except:
+        pass
+    you_list = ['featured','channel','about','videos','playlists',"discussion","feed"]
+    if url.rsplit('/',1)[1] in you_list or url.rsplit('/',1)[1] == 'videos' or url[-1] == '/':
+        url = url.rsplit('/',1)[0]
+   
+
+        
+#    user_url = [] # URL
+#    user_name = [] # User name ex) DJCHETASOFFICIAL, ZEDDVEVO ...
+#    user_type = [] # User type ex) user, channel, watch
+        
+    # /를 기준으로 2번 나눠줌 ex) https://www.youtube.com/user/DJCHETASOFFICIAL->'https://www.youtube.com', 'user', 'DJCHETASOFFICIAL'
+    user_url = url.rsplit('/',2) 
+             
+    # Type이 user 나 channel일 경우 user_name과 user_type에 알맞은 값을 넣어준다
+    if user_url[1] == 'user' or user_url[1] == 'channel':
+        user_name = user_url[2]
+        user_type = user_url[1]        
+
+    # Type이 watch인 경우 name에는  - type에는 watch를 넣어준다 
+    elif user_url[2].split('?')[0] == 'watch':
+        user_name = ('-')
+        user_type = ('watch')       
+        
+    # user, channel, watch 다 아닐 경우 name과 type 모두에 undefine을 넣어준다
+    else:
+        user_name = ('undefine')
+        user_type = ('undefine')
+    
+    result = 0 #init
+    
+    if(user_type == 'user' or user_type == 'channel'):
+        print(user_name)
+        try:
+            user_ids, subscriber,user_name = channel(user_name, api_key, num)
+            video_id, video_date = playlist(user_ids, api_key, num)
+            result = video_stat(video_id,video_date, subscriber, user_name, api_key, num,original_url)
+            return result
+        except Exception as e:
+            print(e)
+            result = deal_error(url)
+        
+    elif(user_type == 'watch'):
+        try:
+            result = single_stat(url, api_key)
+        except:
+            result = pd.DataFrame(np.column_stack(['error', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', url]), 
+                         columns = ['name','post_date','UpdateDate','view_count','like_count','comment_count','share_count', 'url'])
+            print('error in now' + url)
+        
+    return result
