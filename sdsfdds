@@ -1,0 +1,24 @@
+data['Title_Sound Link'] = data['title'].apply(lambda x : 'O' if 'soundlink' in x.lower().split() else None)
+data['Title_Revolve'] = data['title'].apply(lambda x : 'O' if 'revolve' in x.lower().split() else None)
+
+
+data['Description_Sound Link'] = data['description'].apply(lambda x : 'O' if 'soundlink' in x.lower().split() else None)
+data['Description_Revolve'] = data['description'].apply(lambda x : 'O' if 'revolve' in x.lower().split() else None)
+
+from langdetect import detect
+
+data['Lang'] = None
+for i in range(0,len(data)):
+    try:
+        lang = detect(data['description'][i])
+        data['Lang'].iloc[i] = lang
+    except:
+        print("Error")
+        data['Lang'].iloc[i] = 'Error'
+    
+
+
+
+
+
+data.to_excel("D:/Bose_Channel.xlsx")
