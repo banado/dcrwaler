@@ -1,0 +1,20 @@
+# YT
+import pandas as pd #pip install pandas
+import numpy as np
+
+import requests
+import json
+# + TW
+import time
+import sys
+from twitter import Twitter, OAuth
+import urllib.request
+
+import datetime
+from time import sleep
+
+
+from selenium import webdriver
+from selenium.webdriver.common.action_chains import ActionChains
+import warnings
+warnings.filterwarnings('ignore')
